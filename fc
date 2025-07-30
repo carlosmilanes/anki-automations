@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# Anki Flashcard Generator
+# Usage: fc [options] content
+# Options:
+#   -b          Basic card type (default)
+#   -c          Cloze card type
+#   -t "tags"   Specify tags (comma-separated)
+
+show_help() {
+    echo "Anki Flashcard Generator (fc)"
+    echo ""
+    echo "USAGE:"
+    echo "  fc [options] content"
+    echo "  echo 'content' | fc [options]"
+    echo ""
+    echo "OPTIONS:"
+    echo "  -b          Generate Basic cards (default)"
+    echo "  -c          Generate Cloze cards"
+    echo "  -t TAGS     Add tags (comma-separated)"
+    echo "  -h          Show this help"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  fc The mitochondria is the powerhouse of the cell"
+    echo "  fc -c The {{c1::mitochondria}} is the {{c2::powerhouse}} of the cell"
+    echo "  fc -t biology,cells The nucleus contains DNA"
+    echo "  echo 'Complex topic' | fc -b -t advanced"
+}
+
+fc() {
+    local card_type="basic"
+    local tags=""
+    local content=""
+    local args=()
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -b|--basic)
+                card_type="basic"
+                shift
+                ;;
+            -c|--cloze)
+                card_type="cloze"
+                shift
+                ;;
+            -t|--tags)
+                if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                    echo "Error: -t option requires an argument" >&2
+                    show_help
+                    return 1
+                fi
+                tags="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                return 0
+                ;;
+            -*)
+                echo "Unknown option: $1" >&2
+                show_help
+                return 1
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+    
+    # Get content from arguments or stdin
+    if [ ${#args[@]} -gt 0 ]; then
+        content="${args[*]}"
+    else
+        if [ -t 0 ]; then
+            echo "Error: No content provided" >&2
+            show_help
+            return 1
+        fi
+        content=$(cat)
+    fi
+    
+    # Check if content is empty
+    if [ -z "$content" ]; then
+        echo "Error: No content provided" >&2
+        show_help
+        return 1
+    fi
+    
+    # Build system prompt based on card type
+    local system_prompt="You are an expert in Anki spaced repetition and memory optimization techniques. Your task is to create highly effective flashcards that maximize retention and minimize cognitive load.
+
+CARD TYPE: $card_type
+
+"
+
+    if [ "$card_type" = "basic" ]; then
+        system_prompt+="BASIC CARD GUIDELINES:
+- Create clear question-answer pairs
+- Use active recall principles (test knowledge, don't just repeat information)
+- Apply the minimum information principle (one concept per card)
+- Make questions specific and unambiguous
+- Include context clues when helpful
+- Break complex topics into multiple related cards
+- Ensure answers are concise but complete
+
+OUTPUT FORMAT (JSON):
+{
+  \"cards\": [
+    {
+      \"question\": \"Clear, specific question\",
+      \"answer\": \"Concise, accurate answer\",
+      \"extra\": \"Optional additional context or mnemonics\",
+      \"tags\": [\"tag1\", \"tag2\"]
+    }
+  ]
+}"
+    else
+        system_prompt+="CLOZE CARD GUIDELINES:
+- Use {{c1::text}}, {{c2::text}} format for cloze deletions
+- Number clozes logically (c1, c2, c3, etc.)
+- Each cloze should test a single concept
+- Include enough context around clozes for clarity
+- Use overlapping clozes for related concepts
+- Make cloze deletions meaningful, not just random words
+- Avoid making clozes too obvious or too obscure
+
+OUTPUT FORMAT (JSON):
+{
+  \"cards\": [
+    {
+      \"question\": \"Text with {{c1::cloze}} {{c2::deletions}}\",
+      \"extra\": \"Optional additional context or mnemonics\",
+      \"tags\": [\"tag1\", \"tag2\"]
+    }
+  ]
+}"
+    fi
+    
+    system_prompt+="
+
+Create the optimal number of flashcards (not limited to any specific count) to effectively memorize the provided content. Focus on quality and retention effectiveness."
+    
+    # Prepare the prompt with content and tags
+    local user_prompt="Content to convert into flashcards: $content"
+    
+    if [ -n "$tags" ]; then
+        user_prompt+="
+
+Tags to include: $tags"
+    fi
+    
+    # Execute Claude Code command
+    claude -p "$user_prompt" --system-prompt "$system_prompt" --output-format json
+}
+
+# Check if script is being executed directly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    fc "$@"
+fi
