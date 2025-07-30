@@ -83,14 +83,6 @@ echo "Complex topic explanation..." | fc -c -t advanced
 - **Memory Principles**: Applies minimum information principle and active recall
 - **JSON Output**: Structured format for easy import/processing
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit changes: `git commit -am 'Add feature'`
-4. Push to branch: `git push origin feature-name`
-5. Submit a Pull Request
-
 ### Adding New Tools
 
 When adding new automation tools:
@@ -106,7 +98,6 @@ When adding new automation tools:
 - [ ] **Bulk card processing from PDFs/documents**
 - [ ] **Card difficulty analysis and optimization**
 - [ ] **Spaced repetition scheduling tools**
-- [ ] **Integration with popular note-taking apps**
 
 ## Requirements
 
@@ -119,11 +110,7 @@ When adding new automation tools:
 MIT License - see LICENSE file for details
 
 ## Support
-
-- **Issues**: Report bugs or request features via GitHub Issues
 - **Documentation**: [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code/overview)
-- **Community**: Share your automation ideas and improvements
-
 ---
 
 *Making Anki flashcard creation effortless through intelligent automation.*
