@@ -151,8 +151,14 @@ Create the optimal number of flashcards (not limited to any specific count) to e
 Tags to include: $tags"
     fi
     
-    # Execute Claude Code command
-    claude -p "$user_prompt" --system-prompt "$system_prompt" --output-format json
+    # Execute Claude Code command and save to file
+    local output_file="$HOME/flashcards.json"
+    local response=$(claude -p "$user_prompt" --system-prompt "$system_prompt" --output-format json)
+    
+    # Extract the cards array from the response and write to file
+    echo "$response" | jq '.cards' > "$output_file"
+    
+    echo "Flashcards saved to: $output_file"
 }
 
 # Check if script is being executed directly
