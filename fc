@@ -6,6 +6,7 @@
 #   -b          Basic card type (default)
 #   -c          Cloze card type
 #   -t "tags"   Specify tags (comma-separated)
+#   -m "msg"    Custom instructions for Claude
 
 show_help() {
     echo "Anki Flashcard Generator (fc)"
@@ -18,18 +19,21 @@ show_help() {
     echo "  -b          Generate Basic cards (default)"
     echo "  -c          Generate Cloze cards"
     echo "  -t TAGS     Add tags (comma-separated)"
+    echo "  -m MESSAGE  Custom instructions for Claude"
     echo "  -h          Show this help"
     echo ""
     echo "EXAMPLES:"
     echo "  fc The mitochondria is the powerhouse of the cell"
     echo "  fc -c The {{c1::mitochondria}} is the {{c2::powerhouse}} of the cell"
     echo "  fc -t biology,cells The nucleus contains DNA"
+    echo "  fc -c -m 'use multiple cloze deletions' Complex process"
     echo "  echo 'Complex topic' | fc -b -t advanced"
 }
 
 fc() {
     local card_type="basic"
     local tags=""
+    local message=""
     local content=""
     local args=()
     
@@ -51,6 +55,15 @@ fc() {
                     return 1
                 fi
                 tags="$2"
+                shift 2
+                ;;
+            -m|--message)
+                if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                    echo "Error: -m option requires an argument" >&2
+                    show_help
+                    return 1
+                fi
+                message="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -118,11 +131,11 @@ OUTPUT FORMAT (JSON):
 }"
     else
         system_prompt+="CLOZE CARD GUIDELINES:
-- Use {{c1::text}}, {{c2::text}} format for cloze deletions
-- Number clozes logically (c1, c2, c3, etc.)
+- DEFAULT: Use only ONE cloze deletion {{c1::text}} per card unless specifically instructed otherwise
+- Use {{c1::text}}, {{c2::text}} format for cloze deletions only when multiple deletions are needed
+- Number clozes logically (c1, c2, c3, etc.) if using multiple
 - Each cloze should test a single concept
 - Include enough context around clozes for clarity
-- Use overlapping clozes for related concepts
 - Make cloze deletions meaningful, not just random words
 - Avoid making clozes too obvious or too obscure
 
@@ -149,6 +162,12 @@ Create the optimal number of flashcards (not limited to any specific count) to e
         user_prompt+="
 
 Tags to include: $tags"
+    fi
+    
+    if [ -n "$message" ]; then
+        user_prompt+="
+
+Additional instructions: $message"
     fi
     
     # Execute Claude Code command and save to file
