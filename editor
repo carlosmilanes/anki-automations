@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Global editor configuration for anki-automations scripts
+# This file is sourced by other scripts to maintain consistency
+
+export PREFERRED_EDITOR="open -a Windsurf"
