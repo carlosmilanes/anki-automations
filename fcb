@@ -21,11 +21,11 @@ fi
 #   -m "msg"    Custom instructions for Claude
 
 show_help() {
-    echo "Anki Flashcard Generator (fc)"
+    echo "Anki Flashcard Builder (fcb)"
     echo ""
     echo "USAGE:"
-    echo "  fc [options] content"
-    echo "  echo 'content' | fc [options]"
+    echo "  fcb [options] content"
+    echo "  echo 'content' | fcb [options]"
     echo ""
     echo "OPTIONS:"
     echo "  -b          Generate Basic cards (default)"
@@ -35,14 +35,14 @@ show_help() {
     echo "  -h          Show this help"
     echo ""
     echo "EXAMPLES:"
-    echo "  fc The mitochondria is the powerhouse of the cell"
-    echo "  fc -c The {{c1::mitochondria}} is the {{c2::powerhouse}} of the cell"
-    echo "  fc -t biology,cells The nucleus contains DNA"
-    echo "  fc -c -m 'use multiple cloze deletions' Complex process"
-    echo "  echo 'Complex topic' | fc -b -t advanced"
+    echo "  fcb The mitochondria is the powerhouse of the cell"
+    echo "  fcb -c The {{c1::mitochondria}} is the {{c2::powerhouse}} of the cell"
+    echo "  fcb -t biology,cells The nucleus contains DNA"
+    echo "  fcb -c -m 'use multiple cloze deletions' Complex process"
+    echo "  echo 'Complex topic' | fcb -b -t advanced"
 }
 
-fc() {
+fcb() {
     local card_type="basic"
     local tags=""
     local message=""
@@ -98,19 +98,24 @@ fc() {
     if [ ${#args[@]} -gt 0 ]; then
         content="${args[*]}"
     else
+        # If no arguments and no piped input, show help
         if [ -t 0 ]; then
+            show_help
+            return 0
+        fi
+        # Check if there's actually input available
+        if ! read -t 0; then
+            show_help
+            return 0
+        fi
+        # Otherwise read from stdin
+        content=$(cat)
+        # Check if content is empty
+        if [ -z "$content" ]; then
             echo "Error: No content provided" >&2
             show_help
             return 1
         fi
-        content=$(cat)
-    fi
-    
-    # Check if content is empty
-    if [ -z "$content" ]; then
-        echo "Error: No content provided" >&2
-        show_help
-        return 1
     fi
     
     # Build system prompt based on card type
@@ -208,5 +213,5 @@ Additional instructions: $message"
 
 # Check if script is being executed directly
 if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
-    fc "$@"
+    fcb "$@"
 fi
