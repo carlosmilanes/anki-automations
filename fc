@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # Anki Flashcard Generator
+
+# Set IDE variable if not already set in environment
+if [ -z "$IDE" ]; then
+    IDE="open -a Windsurf"
+fi
 # Usage: fc [options] content
 # Options:
 #   -b          Basic card type (default)
@@ -124,8 +129,7 @@ OUTPUT FORMAT (JSON):
     {
       \"question\": \"Clear, specific question\",
       \"answer\": \"Concise, accurate answer\",
-      \"extra\": \"Optional additional context or mnemonics\",
-      \"tags\": [\"tag1\", \"tag2\"]
+      \"extra\": \"Optional additional context or mnemonics\"
     }
   ]
 }"
@@ -145,7 +149,6 @@ OUTPUT FORMAT (JSON):
     {
       \"question\": \"Text with {{c1::cloze}} {{c2::deletions}}\",
       \"extra\": \"Optional additional context or mnemonics\",
-      \"tags\": [\"tag1\", \"tag2\"]
     }
   ]
 }"
@@ -153,7 +156,20 @@ OUTPUT FORMAT (JSON):
     
     system_prompt+="
 
-Create the optimal number of flashcards (not limited to any specific count) to effectively memorize the provided content. Focus on quality and retention effectiveness."
+Create the optimal number of flashcards (not limited to any specific count) to effectively memorize the provided content. Focus on quality and retention effectiveness.
+
+IMPORTANT: Output ONLY the JSON structure. Do not include any explanatory text, markdown formatting, or code blocks. Return only the raw JSON object."
+    
+    # Add tags instruction if tags were provided
+    if [ -n "$tags" ]; then
+        system_prompt+="
+
+TAGS: Add a 'tags' field to each card with the following tags as an array: [$tags]. Format tags as individual quoted strings in the array."
+    else
+        system_prompt+="
+
+TAGS: Do not include a 'tags' field in the JSON output."
+    fi
     
     # Prepare the prompt with content and tags
     local user_prompt="Content to convert into flashcards: $content"
@@ -172,12 +188,15 @@ Additional instructions: $message"
     
     # Execute Claude Code command and save to file
     local output_file="$HOME/flashcards.json"
-    local response=$(claude -p "$user_prompt" --system-prompt "$system_prompt" --output-format json)
+    local response=$(claude -p "$user_prompt" --system-prompt "$system_prompt")
     
     # Extract the cards array from the response and write to file
     echo "$response" | jq '.cards' > "$output_file"
     
     echo "Flashcards saved to: $output_file"
+    
+    # Open the file in the preferred IDE
+    $IDE "$output_file"
 }
 
 # Check if script is being executed directly
