@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Flashcard Content - Simple file creator and opener
+
+# Set IDE variable if not already set in environment
+if [ -z "$IDE" ]; then
+    IDE="open -a Windsurf"
+fi
+
+# Create the fc-content.md file in home directory if it doesn't exist
+content_file="$HOME/fc-content.md"
+
+# Create file if it doesn't exist
+if [ ! -f "$content_file" ]; then
+    touch "$content_file"
+fi
+
+# Open the file in the preferred IDE
+$IDE "$content_file"
