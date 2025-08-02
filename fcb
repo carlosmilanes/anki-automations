@@ -30,6 +30,7 @@ show_help() {
     echo "OPTIONS:"
     echo "  -b          Generate Basic cards (default)"
     echo "  -c          Generate Cloze cards"
+    echo "  -r          Read content from fc-content.md file"
     echo "  -t TAGS     Add tags (comma-separated)"
     echo "  -m MESSAGE  Custom instructions for Claude"
     echo "  -h          Show this help"
@@ -37,6 +38,7 @@ show_help() {
     echo "EXAMPLES:"
     echo "  fcb The mitochondria is the powerhouse of the cell"
     echo "  fcb -c The {{c1::mitochondria}} is the {{c2::powerhouse}} of the cell"
+    echo "  fcb -r -t biology,cells"
     echo "  fcb -t biology,cells The nucleus contains DNA"
     echo "  fcb -c -m 'use multiple cloze deletions' Complex process"
     echo "  echo 'Complex topic' | fcb -b -t advanced"
@@ -47,6 +49,7 @@ fcb() {
     local tags=""
     local message=""
     local content=""
+    local read_from_file=false
     local args=()
     
     # Parse arguments
@@ -58,6 +61,10 @@ fcb() {
                 ;;
             -c|--cloze)
                 card_type="cloze"
+                shift
+                ;;
+            -r|--read)
+                read_from_file=true
                 shift
                 ;;
             -t|--tags)
@@ -94,8 +101,20 @@ fcb() {
         esac
     done
     
-    # Get content from arguments or stdin
-    if [ ${#args[@]} -gt 0 ]; then
+    # Get content from file, arguments, or stdin
+    if [ "$read_from_file" = true ]; then
+        local content_file="$HOME/fc-content.md"
+        if [ ! -f "$content_file" ]; then
+            echo "Error: fc-content.md not found in home directory" >&2
+            echo "Use 'fcc' to create and edit the file first" >&2
+            return 1
+        fi
+        content=$(cat "$content_file")
+        if [ -z "$content" ]; then
+            echo "Error: fc-content.md is empty" >&2
+            return 1
+        fi
+    elif [ ${#args[@]} -gt 0 ]; then
         content="${args[*]}"
     else
         # If no arguments and no piped input, show help
