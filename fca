@@ -1,0 +1,233 @@
+#!/bin/bash
+
+# Flashcard Adder (fca) - Adds generated flashcards to Anki via AnkiConnect
+# Usage: fca [deck_name]
+# Default deck: /general
+
+show_help() {
+    echo "Flashcard Adder (fca)"
+    echo ""
+    echo "USAGE:"
+    echo "  fca [deck_name]"
+    echo "  fca -h|--help"
+    echo ""
+    echo "DESCRIPTION:"
+    echo "  Reads flashcards from ~/flashcards.json and adds them to Anki"
+    echo "  using AnkiConnect API"
+    echo ""
+    echo "ARGUMENTS:"
+    echo "  deck_name   Target Anki deck (default: /general)"
+    echo ""
+    echo "OPTIONS:"
+    echo "  -h, --help  Show this help message"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  fca                    # Adds to /general deck"
+    echo "  fca biology           # Adds to biology deck"
+    echo "  fca \"Spanish Vocab\"   # Adds to Spanish Vocab deck"
+    echo "  fca --help            # Show help information"
+    echo ""
+    echo "REQUIREMENTS:"
+    echo "  - AnkiConnect add-on installed in Anki (addon ID: 2055492159)"
+    echo "  - Anki application must be open and running"
+    echo "  - jq command-line JSON processor (install: brew install jq)"
+    echo "  - ~/flashcards.json file must exist (generate with 'fcb' command)"
+    echo "  - Target deck must exist in Anki (create manually if needed)"
+    echo ""
+    echo "WORKFLOW:"
+    echo "  1. Generate flashcards: fcb 'your content here'"
+    echo "  2. Add to Anki deck:    fca your_deck_name"
+}
+
+fca() {
+    local deck_name="/general"
+    
+    # Parse arguments
+    if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        show_help
+        return 0
+    fi
+    
+    if [ -n "$1" ]; then
+        deck_name="$1"
+    fi
+    
+    # Check if flashcards.json exists
+    local flashcards_file="$HOME/flashcards.json"
+    if [ ! -f "$flashcards_file" ]; then
+        echo "Error: flashcards.json not found in home directory" >&2
+        echo ""
+        echo "To create flashcards.json:"
+        echo "  1. Generate flashcards with: fcb 'your content here'"
+        echo "     Example: fcb 'The mitochondria is the powerhouse of the cell'"
+        echo "  2. Or create content file first: fcc (then use fcb -r)"
+        echo "  3. Then run: fca [deck_name] to add cards to Anki"
+        echo ""
+        echo "For more help: fca --help"
+        return 1
+    fi
+    
+    # Check if jq is available
+    if ! command -v jq &> /dev/null; then
+        echo "Error: jq is required but not installed" >&2
+        echo "Install with: brew install jq" >&2
+        return 1
+    fi
+    
+    # Test AnkiConnect connection
+    echo "Testing AnkiConnect connection..."
+    local test_response=$(curl -s -X POST http://localhost:8765 -d '{
+        "action": "version",
+        "version": 6
+    }' 2>/dev/null)
+    
+    if [ -z "$test_response" ]; then
+        echo "Error: Cannot connect to AnkiConnect" >&2
+        echo "Make sure Anki is running and AnkiConnect add-on is installed" >&2
+        return 1
+    fi
+    
+    # Parse the JSON response to check for errors
+    local anki_version=$(echo "$test_response" | jq -r '.result // empty' 2>/dev/null)
+    if [ -z "$anki_version" ]; then
+        echo "Error: AnkiConnect is not responding correctly" >&2
+        echo "Response: $test_response" >&2
+        return 1
+    fi
+    
+    echo "✓ Connected to AnkiConnect (version $anki_version)"
+    
+    # Read and validate flashcards file
+    echo "Reading flashcards from $flashcards_file..."
+    local flashcards_content=$(cat "$flashcards_file")
+    
+    if ! echo "$flashcards_content" | jq empty 2>/dev/null; then
+        echo "Error: Invalid JSON in flashcards.json" >&2
+        return 1
+    fi
+    
+    local card_count=$(echo "$flashcards_content" | jq 'length')
+    echo "Found $card_count flashcard(s) to add to deck '$deck_name'"
+    
+    if [ "$card_count" -eq 0 ]; then
+        echo "No flashcards to add"
+        return 0
+    fi
+    
+    # Process each flashcard
+    local success_count=0
+    local error_count=0
+    
+    for i in $(seq 0 $((card_count - 1))); do
+        local card=$(echo "$flashcards_content" | jq ".[$i]")
+        
+        # Extract card data
+        local question=$(echo "$card" | jq -r '.question // empty')
+        local answer=$(echo "$card" | jq -r '.answer // empty')
+        local extra=$(echo "$card" | jq -r '.extra // empty')
+        local tags=$(echo "$card" | jq -r '.tags // [] | join(" ")')
+        
+        # Handle cloze cards (if question contains cloze deletions)
+        local model_name="Basic"
+        local front_field="Front"
+        local back_field="Back"
+        
+        if [[ "$question" == *"{{c"*"::"*"}}"* ]]; then
+            model_name="Cloze"
+            front_field="Text"
+            back_field="Extra"
+            # For cloze cards, the question goes in Text field and extra in Extra field
+            local cloze_text="$question"
+            if [ -n "$extra" ]; then
+                extra="$extra"
+            else
+                extra=""
+            fi
+        fi
+        
+        # Build the note JSON
+        local note_json='{
+            "action": "addNote",
+            "version": 6,
+            "params": {
+                "note": {
+                    "deckName": "'"$deck_name"'",
+                    "modelName": "'"$model_name"'",
+                    "fields": {},
+                    "tags": []
+                }
+            }
+        }'
+        
+        # Add fields based on card type
+        if [ "$model_name" = "Cloze" ]; then
+            note_json=$(echo "$note_json" | jq --arg text "$question" --arg extra "$extra" '
+                .params.note.fields = {
+                    "Text": $text,
+                    "Extra": $extra
+                }
+            ')
+        else
+            # Combine answer and extra for basic cards
+            local full_answer="$answer"
+            if [ -n "$extra" ]; then
+                full_answer="$answer<br><br><i>$extra</i>"
+            fi
+            
+            note_json=$(echo "$note_json" | jq --arg front "$question" --arg back "$full_answer" '
+                .params.note.fields = {
+                    "Front": $front,
+                    "Back": $back
+                }
+            ')
+        fi
+        
+        # Add tags if present
+        if [ -n "$tags" ]; then
+            local tags_array=$(echo "[$tags]" | sed 's/ /", "/g' | sed 's/\[/["/' | sed 's/\]/"]/')
+            note_json=$(echo "$note_json" | jq --argjson tags "$tags_array" '.params.note.tags = $tags')
+        fi
+        
+        # Send request to AnkiConnect
+        local response=$(curl -s -X POST http://localhost:8765 -d "$note_json" 2>/dev/null)
+        
+        # Check response
+        local note_id=$(echo "$response" | jq -r '.result // empty' 2>/dev/null)
+        local error_msg=$(echo "$response" | jq -r '.error // empty' 2>/dev/null)
+        
+        if [ -n "$note_id" ] && [ "$note_id" != "null" ]; then
+            echo "✓ Added card $((i + 1))/$card_count: \"$question\""
+            ((success_count++))
+        else
+            echo "✗ Failed to add card $((i + 1))/$card_count: \"$question\""
+            if [ -n "$error_msg" ]; then
+                echo "  Error: $error_msg"
+            fi
+            ((error_count++))
+        fi
+    done
+    
+    echo ""
+    echo "Summary:"
+    echo "  ✓ Successfully added: $success_count cards"
+    if [ $error_count -gt 0 ]; then
+        echo "  ✗ Failed to add: $error_count cards"
+    fi
+    echo "  📚 Target deck: $deck_name"
+    
+    if [ $error_count -gt 0 ]; then
+        echo ""
+        echo "Common issues:"
+        echo "  - Deck '$deck_name' doesn't exist (create it in Anki first)"
+        echo "  - Note type 'Basic' or 'Cloze' doesn't exist"
+        echo "  - Duplicate cards (AnkiConnect may reject duplicates)"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Check if script is being executed directly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    fca "$@"
+fi
