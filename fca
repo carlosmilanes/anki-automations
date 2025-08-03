@@ -128,7 +128,7 @@ fca() {
         local tags=$(echo "$card" | jq -r '.tags // [] | join(" ")')
         
         # Handle cloze cards (if question contains cloze deletions)
-        local model_name="Basic"
+        local model_name="Basic + Extra"
         local front_field="Front"
         local back_field="Back"
         
@@ -168,16 +168,12 @@ fca() {
                 }
             ')
         else
-            # Combine answer and extra for basic cards
-            local full_answer="$answer"
-            if [ -n "$extra" ]; then
-                full_answer="$answer<br><br><i>$extra</i>"
-            fi
-            
-            note_json=$(echo "$note_json" | jq --arg front "$question" --arg back "$full_answer" '
+            # For Basic + Extra cards, use separate fields for answer and extra
+            note_json=$(echo "$note_json" | jq --arg front "$question" --arg back "$answer" --arg extra "$extra" '
                 .params.note.fields = {
                     "Front": $front,
-                    "Back": $back
+                    "Back": $back,
+                    "Extra": $extra
                 }
             ')
         fi
@@ -219,7 +215,7 @@ fca() {
         echo ""
         echo "Common issues:"
         echo "  - Deck '$deck_name' doesn't exist (create it in Anki first)"
-        echo "  - Note type 'Basic' or 'Cloze' doesn't exist"
+        echo "  - Note type 'Basic + Extra' or 'Cloze' doesn't exist"
         echo "  - Duplicate cards (AnkiConnect may reject duplicates)"
         return 1
     fi
