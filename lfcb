@@ -1,0 +1,158 @@
+#!/bin/bash
+
+# Language FlashCard Builder (lfcb)
+
+# Source editor configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/editor" ]; then
+    source "$SCRIPT_DIR/editor"
+    IDE="$PREFERRED_EDITOR"
+else
+    # Fallback if editor config file doesn't exist
+    if [ -z "$IDE" ]; then
+        IDE="open -a Windsurf"
+    fi
+fi
+
+show_help() {
+    echo "Language FlashCard Builder (lfcb)"
+    echo ""
+    echo "USAGE:"
+    echo "  lfcb \"dictionary definition text\""
+    echo "  echo 'definition' | lfcb"
+    echo ""
+    echo "OPTIONS:"
+    echo "  -h          Show this help"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  lfcb \"cat NOUN a small domesticated carnivorous mammal\""
+    echo "  echo 'definition text' | lfcb"
+}
+
+lfcb() {
+    local content=""
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                return 0
+                ;;
+            *)
+                content="$*"
+                break
+                ;;
+        esac
+    done
+    
+    # Get content from arguments or stdin
+    if [ -z "$content" ]; then
+        # If no arguments, check for piped input
+        if [ -t 0 ]; then
+            show_help
+            return 0
+        fi
+        # Check if there's actually input available
+        if ! read -t 0; then
+            show_help
+            return 0
+        fi
+        # Read from stdin
+        content=$(cat)
+        # Check if content is empty
+        if [ -z "$content" ]; then
+            echo "Error: No content provided" >&2
+            show_help
+            return 1
+        fi
+    fi
+    
+    # System prompt for Claude Code
+    local system_prompt="You are a dictionary definition formatter. Your task is to take dictionary definitions and format them as clean HTML according to specific rules.
+
+<task>
+Format the dictionary definition according to the following rules.
+</task>
+
+<rules>
+1. Skip etymology - Ignore any ORIGIN field
+2. Word types - Convert to ALL-CAPS (NOUN, ADJECTIVE, etc.)
+3. Meanings - Format in bold, separate with blank lines
+4. Pronunciations - Keep in normal text
+5. Examples - Format in italics, place first example directly below meaning, separate additional examples with blank lines
+</rules>
+
+<output>
+Return clean HTML following the formatting rules above.
+</output>
+
+IMPORTANT: Output ONLY the clean HTML. Do not include any explanatory text, markdown formatting, or code blocks. Return only the raw HTML."
+    
+    # User prompt with dictionary definition
+    local user_prompt="<dictionary-definition>
+$content
+</dictionary-definition>
+
+Format this dictionary definition according to the rules provided in the system prompt."
+    
+    echo "Processing dictionary definition with Claude Code..."
+    
+    # Execute Claude Code command
+    local html_response=$(claude -p "$user_prompt" --system-prompt "$system_prompt")
+    
+    if [ $? -ne 0 ] || [ -z "$html_response" ]; then
+        echo "Error: Failed to process definition with Claude Code" >&2
+        return 1
+    fi
+    
+    echo "Generated HTML:"
+    echo "$html_response"
+    echo ""
+    
+    # Send to AnkiConnect to open Add Card UI
+    echo "Sending to Anki..."
+    
+    # Escape HTML for JSON
+    local escaped_html=$(echo "$html_response" | jq -R -s .)
+    
+    # Create AnkiConnect request to open Add Card dialog with the HTML in the front field
+    local anki_request="{
+        \"action\": \"guiAddCards\",
+        \"version\": 6,
+        \"params\": {
+            \"note\": {
+                \"deckName\": \"Default\",
+                \"modelName\": \"Basic\",
+                \"fields\": {
+                    \"Front\": $escaped_html,
+                    \"Back\": \"\"
+                }
+            }
+        }
+    }"
+    
+    # Send request to AnkiConnect
+    local anki_response=$(curl -s -X POST http://localhost:8765 \
+        -H "Content-Type: application/json" \
+        -d "$anki_request")
+    
+    # Check if request was successful
+    if echo "$anki_response" | jq -e '.error == null' > /dev/null 2>&1; then
+        echo "✓ Anki Add Card dialog opened with formatted definition"
+    else
+        echo "✗ Failed to open Anki Add Card dialog"
+        echo "Response: $anki_response"
+        echo ""
+        echo "Make sure:"
+        echo "- Anki is running"
+        echo "- AnkiConnect addon is installed and enabled"
+        echo "- Basic note type exists in Anki"
+        return 1
+    fi
+}
+
+# Check if script is being executed directly
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    lfcb "$@"
+fi
