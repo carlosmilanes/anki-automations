@@ -98,8 +98,10 @@ Format this dictionary definition according to the rules provided in the system 
     
     echo "Processing dictionary definition with Claude Code..."
     
-    # Execute Claude Code command
-    local html_response=$(claude -p "$user_prompt" --system-prompt "$system_prompt")
+    # Execute Claude Code command with full environment
+    export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+    export NODE_PATH="/opt/homebrew/lib/node_modules"
+    local html_response=$(env PATH="$PATH" NODE_PATH="$NODE_PATH" /opt/homebrew/bin/node /opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/cli.js -p "$user_prompt" --system-prompt "$system_prompt")
     
     if [ $? -ne 0 ] || [ -z "$html_response" ]; then
         echo "Error: Failed to process definition with Claude Code" >&2
