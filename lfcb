@@ -124,7 +124,7 @@ Format this dictionary definition according to the rules provided in the system 
         \"version\": 6,
         \"params\": {
             \"note\": {
-                \"deckName\": \"Default\",
+                \"deckName\": \"languages::en\",
                 \"modelName\": \"Basic\",
                 \"fields\": {
                     \"Front\": $escaped_html,
