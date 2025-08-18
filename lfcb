@@ -80,11 +80,17 @@ Format the dictionary definition according to the following rules.
 2. Word types - Convert to ALL-CAPS (NOUN, ADJECTIVE, etc.)
 3. Meanings - Format in bold, separate with blank lines. When parentheses appear within meanings, the parentheses and all text inside them should be in normal text weight, not bold. Meanings should NOT end with a colon or any punctuation mark
 4. Pronunciations - Keep in normal text
-5. Examples - Format in italics, place first example on the line immediately below its meaning (not on the same line), separate additional examples with blank lines. Underline the target word when it appears in examples
+5. Examples - Format in italics, place first example immediately below its corresponding meaning using <br> tag (not on the same line). Underline the target word when it appears in examples
+6. HTML structure - ALWAYS surround individual lines with <p> tags. Each meaning and its first example should be grouped together in a single <p> tag with the example following the meaning after a <br> tag
 </rules>
 
 <output>
-Return clean HTML following the formatting rules above.
+Return clean HTML following the formatting rules above. The output should follow this pattern:
+<p><strong>meaning text</strong><br>
+<em>example with <u>target word</u> underlined.</em></p>
+
+For additional examples, use separate <p> tags:
+<p><em>additional example with <u>target word</u> underlined.</em></p>
 </output>
 
 IMPORTANT: Output ONLY the clean HTML. Do not include any explanatory text, markdown formatting, or code blocks. Return only the raw HTML."
