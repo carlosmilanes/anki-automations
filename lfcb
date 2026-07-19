@@ -107,7 +107,7 @@ Format this dictionary definition according to the rules provided in the system 
     
     # Execute Claude Code command with full environment
     export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-    local html_response=$(env PATH="$PATH" claude -p --bare "$user_prompt" --system-prompt "$system_prompt")
+    local html_response=$(env PATH="$PATH" claude -p "$user_prompt" --system-prompt "$system_prompt")
     
     if [ $? -ne 0 ] || [ -z "$html_response" ]; then
         echo "Error: Failed to process definition with Claude Code" >&2

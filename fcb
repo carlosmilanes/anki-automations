@@ -219,7 +219,7 @@ Additional instructions: $message"
     
     # Execute Claude Code command and save to file
     local output_file="$HOME/flashcards.json"
-    local response=$(claude -p --bare "$user_prompt" --system-prompt "$system_prompt")
+    local response=$(claude -p "$user_prompt" --system-prompt "$system_prompt")
     
     # Extract the cards array from the response and write to file
     echo "$response" | jq '.cards' > "$output_file"
